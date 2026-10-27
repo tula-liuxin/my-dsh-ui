@@ -1,0 +1,15 @@
+{
+  "id": "sidebar-pinned",
+  "version": "0.1.0",
+  "title": {
+    "zh": "置顶会话",
+    "en": "Pinned sessions"
+  },
+  "description": {
+    "zh": "在侧栏导航新增「置顶」入口：集中列出所有置顶会话，可一键打开或取消置顶；取消置顶后自动从列表移除。",
+    "en": "Adds a Pinned entry to the sidebar navigation: every pinned session in one page, one click to open or unpin, and unpinned sessions leave the list immediately."
+  },
+  "author": "Leo / tula-liuxin",
+  "homepage": "https://github.com/tula-liuxin/my-dsh-ui",
+  "defaultEnabled": true
+}

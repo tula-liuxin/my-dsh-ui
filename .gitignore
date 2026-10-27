@@ -1,0 +1,6 @@
+publish/
+node_modules/
+*.tgz
+.DS_Store
+Thumbs.db
+docs/

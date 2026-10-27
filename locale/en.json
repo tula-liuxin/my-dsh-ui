@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "My DSH UI",
+    "description": "A container for UI sub-plugins: toggle, compose and remove interface features the way you manage plugins. Ships a pinned-sessions sub-plugin that collects pinned sessions into their own section."
+  }
+}
