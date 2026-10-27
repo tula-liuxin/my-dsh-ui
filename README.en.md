@@ -5,10 +5,10 @@ UI sub-plugins the way you manage DSH plugins — toggle them, compose them, uni
 taking effect immediately.
 
 The first bundled sub-plugin is **Pinned / Unread**: it adds an entry with a count badge to the sidebar
-navigation — the badge counts unread sessions only. One click expands a floating list right under the icon,
+navigation. One click expands a floating list right under the icon,
 inside the left column (never covering the conversation, and the main panel stays where it was): pinned
 sessions first (unpin from a row), then sessions that finished in the background and are still unread, each
-marked with a small green dot beside the title (they leave the list once read). Subagent, archived and blank
+marked with a small green dot beside the title (they leave the list once read); the heading carries gray/green split counts of pinned and unread sessions. Subagent, archived and blank
 sessions never appear. Clicking a session switches to it and leaves the list open so the next switch is one
 click. The list dismisses only on an outside click or Escape. A full page is available from the list footer.
 

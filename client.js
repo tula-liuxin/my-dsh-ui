@@ -10,14 +10,14 @@ const SUBPLUGINS = [
     id: "sidebar-pinned",
     manifest: {
       "id": "sidebar-pinned",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "title": {
         "zh": "置顶 / 未读会话",
         "en": "Pinned / unread sessions"
       },
       "description": {
-        "zh": "侧栏导航新增「置顶/未读」入口：角标只统计未读数；点一下在图标下方贴左侧栏展开浮层，置顶会话排前、未读会话排后（未读用会话标题旁的小绿点标记，读后自动消失）；点会话立即切换且浮层不收起，行尾可取消置顶。",
-        "en": "Adds a Pinned/Unread entry to the sidebar navigation: the badge counts unread sessions only. One click expands a floating list inside the left column — pinned first, then unread sessions marked with a small green dot beside the title (they leave the list once read). Switch in one click without closing the list; unpin from a row."
+        "zh": "侧栏导航新增「置顶/未读」入口：点一下在图标下方贴左侧栏展开浮层，置顶会话（灰色图钉）排在前面、未读会话（标题旁小绿点）排在后面，标题右侧以「置顶 / 未读」双色计数（灰 / 绿）；点会话立即切换且浮层不收起，行尾可取消置顶，读过的未读会自动消失。",
+        "en": "Adds a Pinned/Unread entry to the sidebar navigation: one click expands a floating list inside the left column, pinned sessions (gray pin) first and unread ones (small green dot beside the title) after them, with gray/green split counts beside the heading. Switch in one click without closing the list; unpin from a row, and read sessions drop out of the unread group."
       },
       "author": "Leo / tula-liuxin",
       "homepage": "https://github.com/tula-liuxin/my-dsh-ui",
@@ -112,7 +112,7 @@ const SUBPLUGINS = [
       .myui-pinned__row{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:8px 10px;border:none;border-radius:var(--dsw-radius-md,10px);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
       .myui-pinned__row:hover{background:var(--dsw-alias-bg-layer-2)}
       .myui-pinned__row:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-2px}
-      .myui-pinned__glyph{flex:none;display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;color:var(--dsw-alias-state-warn-primary)}
+      .myui-pinned__glyph{flex:none;display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary)}
       .myui-pinned__body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
       .myui-pinned__name{min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .myui-pinned__meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -126,7 +126,14 @@ const SUBPLUGINS = [
       .myui-pinned__iconwrap{position:relative;display:inline-flex;align-items:center;justify-content:center}
       .myui-pop{position:fixed;z-index:20;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:236px;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,10px);background:var(--dsw-alias-bg-overlay);box-shadow:0 10px 32px rgba(0,0,0,.18);pointer-events:auto}
       .myui-pop__head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 4px;color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600}
-      .myui-pop__count{font-weight:600;color:var(--dsw-alias-label-secondary)}
+      .myui-pop__counts{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600}
+      .myui-pop__count--pinned{color:var(--dsw-alias-label-secondary)}
+      .myui-pop__count--unread{color:var(--dsw-alias-state-success-primary)}
+      .myui-pop__sep{color:var(--dsw-alias-label-secondary);opacity:.55;font-weight:400}
+      .myui-pinned__counts{display:inline-flex;align-items:center;gap:6px;margin-left:4px;font-size:13px;font-weight:600}
+      .myui-pinned__count--pinned{color:var(--dsw-alias-label-secondary)}
+      .myui-pinned__count--unread{color:var(--dsw-alias-state-success-primary)}
+      .myui-pinned__sep{color:var(--dsw-alias-label-secondary);opacity:.55;font-weight:400}
       .myui-pop__list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;min-height:0}
       .myui-pop__empty{padding:18px 10px;color:var(--dsw-alias-label-secondary);font-size:12px;text-align:center;line-height:1.6}
       .myui-pop__foot{border-top:1px solid var(--dsw-alias-border-l1);margin-top:4px;padding:4px 2px 2px}
@@ -491,15 +498,34 @@ const SUBPLUGINS = [
           );
         }
 
+        /** Split counts for the headers: pinned (gray) and unread (green). */
+        function countRows(rows) {
+          let pinned = 0;
+          let unread = 0;
+          for (const row of rows) {
+            if (row.pinned) pinned += 1;
+            if (row.unread) unread += 1;
+          }
+          return { pinned, unread, total: pinned + unread };
+        }
+
+        function SplitCounts({ counts, classNamePrefix }) {
+          return h(
+            'span',
+            { className: classNamePrefix + '__counts', 'aria-label': counts.pinned + ' ' + t('pinnedTag') + ' / ' + counts.unread + ' ' + t('unreadTag') },
+            h('span', { className: classNamePrefix + '__count--pinned' }, String(counts.pinned)),
+            h('span', { className: classNamePrefix + '__sep' }, '/'),
+            h('span', { className: classNamePrefix + '__count--unread' }, String(counts.unread)),
+          );
+        }
+
         // -- sidebar trigger --------------------------------------------------------
         // Inside the sidebar's own nav button, so this is a presentational span that only
         // records its position; the row's own click drives the list (see PinnedPage).
         function PinnedIcon(props) {
           const { size } = props;
           const rows = useRows(props);
-          // The badge counts unread sessions only; pinned rows are not part of that number.
-          let count = 0;
-          for (const row of rows) if (row.unread) count += 1;
+          const { total } = countRows(rows);
           return h(
             'span',
             {
@@ -511,8 +537,8 @@ const SUBPLUGINS = [
               title: t('heading'),
             },
             h(PinGlyph, { size: size ?? 16 }),
-            count > 0
-              ? h('span', { className: 'myui-pinned__badge', 'aria-hidden': 'true' }, count > 9 ? '9+' : String(count))
+            total > 0
+              ? h('span', { className: 'myui-pinned__badge', 'aria-hidden': 'true' }, total > 9 ? '9+' : String(total))
               : null,
           );
         }
@@ -576,7 +602,7 @@ const SUBPLUGINS = [
               'div',
               { className: 'myui-pop__head' },
               h('span', null, t('heading')),
-              h('span', { className: 'myui-pop__count' }, String(rows.length)),
+              h(SplitCounts, { counts: countRows(rows), classNamePrefix: 'myui-pop' }),
             ),
             rows.length === 0
               ? h('div', { className: 'myui-pop__empty' }, t('empty'))
@@ -625,10 +651,16 @@ const SUBPLUGINS = [
               h(
                 'div',
                 { className: 'myui-pinned__headrow' },
-                h('h2', { className: 'myui-pinned__title' }, h(PinGlyph, { size: 18 }), t('heading')),
+                h(
+                  'h2',
+                  { className: 'myui-pinned__title' },
+                  h(PinGlyph, { size: 18 }),
+                  t('heading'),
+                  h(SplitCounts, { counts: countRows(rows), classNamePrefix: 'myui-pinned' }),
+                ),
                 h('button', { type: 'button', className: 'myui-button', onClick: restorePreviousPanel }, t('backToChat')),
               ),
-              h('p', { className: 'myui-pinned__summary' }, rows.length > 0 ? rows.length + ' · ' + t('summary') : t('summary')),
+              h('p', { className: 'myui-pinned__summary' }, t('summary')),
             ),
             rows.length === 0
               ? h('div', { className: 'myui-pinned__empty' }, t('empty'))

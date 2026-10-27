@@ -1,13 +1,13 @@
 {
   "id": "sidebar-pinned",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "title": {
     "zh": "置顶 / 未读会话",
     "en": "Pinned / unread sessions"
   },
   "description": {
-    "zh": "侧栏导航新增「置顶/未读」入口：角标只统计未读数；点一下在图标下方贴左侧栏展开浮层，置顶会话排前、未读会话排后（未读用会话标题旁的小绿点标记，读后自动消失）；点会话立即切换且浮层不收起，行尾可取消置顶。",
-    "en": "Adds a Pinned/Unread entry to the sidebar navigation: the badge counts unread sessions only. One click expands a floating list inside the left column — pinned first, then unread sessions marked with a small green dot beside the title (they leave the list once read). Switch in one click without closing the list; unpin from a row."
+    "zh": "侧栏导航新增「置顶/未读」入口：点一下在图标下方贴左侧栏展开浮层，置顶会话（灰色图钉）排在前面、未读会话（标题旁小绿点）排在后面，标题右侧以「置顶 / 未读」双色计数（灰 / 绿）；点会话立即切换且浮层不收起，行尾可取消置顶，读过的未读会自动消失。",
+    "en": "Adds a Pinned/Unread entry to the sidebar navigation: one click expands a floating list inside the left column, pinned sessions (gray pin) first and unread ones (small green dot beside the title) after them, with gray/green split counts beside the heading. Switch in one click without closing the list; unpin from a row, and read sessions drop out of the unread group."
   },
   "author": "Leo / tula-liuxin",
   "homepage": "https://github.com/tula-liuxin/my-dsh-ui",
