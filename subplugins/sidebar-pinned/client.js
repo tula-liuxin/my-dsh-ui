@@ -271,26 +271,50 @@ export function apply(ui) {
   }
 
   // -- unread projection ------------------------------------------------------
-  // `sessionStatus` is a root hook (Map<SessionId, {running, pendingInteraction,
-  // completionUnread}>); `completionUnread` is the sidebar's unread dot.
-  function unreadSignature(map) {
-    const ids = [];
-    if (map !== undefined && map !== null && typeof map.forEach === 'function') {
-      map.forEach((status, id) => {
-        if (status?.completionUnread === true) ids.push(String(id));
-      });
+  // `uiSession.sessionStatus` is a public store: Map<SessionId, {running,
+  // pendingInteraction, completionUnread}>. `completionUnread` is the sidebar's
+  // "finished while you were not looking" flag (page-local, mirrors the shipped dot).
+  const statusStore = ctx.get('uiSession')?.sessionStatus;
+  if (!statusStore) ui.log('uiSession.sessionStatus unavailable; the list will only show pinned sessions');
+  const subscribeStatus = (listener) => {
+    if (!statusStore || typeof statusStore.subscribe !== 'function') return () => {};
+    try {
+      const off = statusStore.subscribe(listener);
+      return typeof off === 'function' ? off : () => {};
+    } catch {
+      return () => {};
     }
-    return ids.join('|');
-  }
-
-  function useUnread(useSessionStatus) {
-    if (typeof useSessionStatus !== 'function') return '';
-    return useSessionStatus(unreadSignature);
-  }
-
-  function useUnreadCount(useSessionStatus) {
-    return useUnread(useSessionStatus).split('|').filter(Boolean).length;
-  }
+  };
+  const statusSnapshot = () => {
+    if (!statusStore || typeof statusStore.getSnapshot !== 'function') return undefined;
+    try {
+      return statusStore.getSnapshot();
+    } catch {
+      return undefined;
+    }
+  };
+  let unreadCacheKey;
+  let unreadCache = EMPTY;
+  const unreadIds = {
+    getSnapshot() {
+      const snapshot = statusSnapshot();
+      if (snapshot === unreadCacheKey) return unreadCache;
+      unreadCacheKey = snapshot;
+      const ids = [];
+      if (snapshot !== undefined && snapshot !== null && typeof snapshot.forEach === 'function') {
+        snapshot.forEach((status, id) => {
+          if (status?.completionUnread === true) ids.push(String(id));
+        });
+      }
+      unreadCache = ids.length === 0 ? EMPTY : ids;
+      return unreadCache;
+    },
+    subscribe: subscribeStatus,
+  };
+  const unreadCount = {
+    getSnapshot: () => unreadIds.getSnapshot().length,
+    subscribe: subscribeStatus,
+  };
 
   function sessionTitle(summary, id) {
     const display = summary?.displayTitle ?? summary?.title ?? '';
@@ -306,23 +330,24 @@ export function apply(ui) {
     return null;
   }
 
-  /** Rows = pinned (pin order) then unread-only (session order), archived removed. */
-  function buildRows({ pinned, unreadSignatureValue, archived, sessionSnapshot }) {
+  /** Rows = pinned (pin order) then unread-only (session order), archived/blank removed. */
+  function buildRows({ pinned, unread, archived, sessionSnapshot }) {
     const archivedSet = new Set(archived ?? EMPTY);
     const pinnedSet = new Set(pinned ?? EMPTY);
-    const unread = new Set(unreadSignatureValue === '' ? EMPTY : unreadSignatureValue.split('|'));
+    const unreadSet = new Set(unread ?? EMPTY);
     const byId = sessionSnapshot?.byId ?? {};
     const order = Array.isArray(sessionSnapshot?.ids) ? sessionSnapshot.ids : Object.keys(byId);
     const rank = new Map(order.map((id, index) => [id, index]));
     const rows = [];
     for (const id of pinned ?? EMPTY) {
       if (archivedSet.has(id)) continue;
-      rows.push({ id, pinned: true, unread: unread.has(id) });
+      rows.push({ id, pinned: true, unread: unreadSet.has(id) });
     }
     const rest = [];
-    for (const id of unread) {
+    for (const id of unreadSet) {
       if (archivedSet.has(id) || pinnedSet.has(id)) continue;
-      if (byId[id] === undefined) continue;
+      const summary = byId[id];
+      if (summary === undefined || summary?.blank === true) continue;
       rest.push(id);
     }
     rest.sort((left, right) => (rank.get(left) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right) ?? Number.MAX_SAFE_INTEGER));
@@ -334,8 +359,8 @@ export function apply(ui) {
     const pinned = props.usePinned((value) => value);
     const archived = props.useArchived((value) => value);
     const sessionSnapshot = props.useSessionList((value) => value);
-    const unreadSignatureValue = useUnread(props.useSessionStatus);
-    return buildRows({ pinned, unreadSignatureValue, archived, sessionSnapshot });
+    const unread = props.useUnread((value) => value);
+    return buildRows({ pinned, unread, archived, sessionSnapshot });
   }
 
   // -- icons ------------------------------------------------------------------
@@ -443,9 +468,9 @@ export function apply(ui) {
   // -- sidebar trigger --------------------------------------------------------
   // Inside the sidebar's own nav button, so this is a presentational span that only
   // records its position; the row's own click drives the list (see PinnedPage).
-  function PinnedIcon({ size, usePinnedCount, useSessionStatus }) {
+  function PinnedIcon({ size, usePinnedCount, useUnreadCount }) {
     const pinned = typeof usePinnedCount === 'function' ? usePinnedCount((value) => value) : 0;
-    const unread = useUnreadCount(useSessionStatus);
+    const unread = typeof useUnreadCount === 'function' ? useUnreadCount((value) => value) : 0;
     const count = pinned + unread;
     return h(
       'span',
@@ -599,6 +624,8 @@ export function apply(ui) {
     hooks: {
       pinned: pinnedIds,
       pinnedCount,
+      unread: unreadIds,
+      unreadCount,
       archived: archivedIds,
       sessionList,
       workspaceItems,
