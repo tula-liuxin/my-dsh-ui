@@ -10,14 +10,14 @@ const SUBPLUGINS = [
     id: "sidebar-pinned",
     manifest: {
       "id": "sidebar-pinned",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "title": {
         "zh": "置顶 / 未读会话",
         "en": "Pinned / unread sessions"
       },
       "description": {
-        "zh": "侧栏导航新增「置顶/未读」入口（带数量角标）：点一下就在图标下方贴左侧栏展开浮层，置顶会话排前、后台跑完未读的排后；点会话立即切换且浮层不收起，行尾可取消置顶，底部可进入完整页面。",
-        "en": "Adds a Pinned/Unread entry with a count badge to the sidebar navigation: one click expands a floating list inside the left column, pinned sessions first, then sessions that finished in the background and are still unread. Stories switch in one click without closing the list, rows can be unpinned, and a full page is one footer click away."
+        "zh": "侧栏导航新增「置顶/未读」入口：角标只统计未读数；点一下在图标下方贴左侧栏展开浮层，置顶会话排前、未读会话排后（未读用会话标题旁的小绿点标记，读后自动消失）；点会话立即切换且浮层不收起，行尾可取消置顶。",
+        "en": "Adds a Pinned/Unread entry to the sidebar navigation: the badge counts unread sessions only. One click expands a floating list inside the left column — pinned first, then unread sessions marked with a small green dot beside the title (they leave the list once read). Switch in one click without closing the list; unpin from a row."
       },
       "author": "Leo / tula-liuxin",
       "homepage": "https://github.com/tula-liuxin/my-dsh-ui",
@@ -113,13 +113,11 @@ const SUBPLUGINS = [
       .myui-pinned__row:hover{background:var(--dsw-alias-bg-layer-2)}
       .myui-pinned__row:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-2px}
       .myui-pinned__glyph{flex:none;display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;color:var(--dsw-alias-state-warn-primary)}
-      .myui-pinned__dot{display:block;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-brand-primary)}
       .myui-pinned__body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
-      .myui-pinned__name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .myui-pinned__name{min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .myui-pinned__meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .myui-pinned__tag{flex:none;font-size:10px;line-height:15px;padding:0 5px;border-radius:999px;font-weight:600}
-      .myui-pinned__tag--pinned{color:var(--dsw-alias-state-warn-primary);background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 16%,transparent)}
-      .myui-pinned__tag--unread{color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 14%,transparent)}
+      .myui-pinned__line{display:flex;align-items:center;gap:6px;min-width:0}
+      .myui-pinned__unread{flex:none;display:block;width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-success-primary)}
       .myui-pinned__action{flex:none;display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border:none;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;opacity:0}
       .myui-pinned__row:hover .myui-pinned__action,.myui-pinned__action:focus-visible{opacity:1}
       .myui-pinned__action:hover{background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
@@ -451,23 +449,28 @@ const SUBPLUGINS = [
                 }
               },
             },
-            h(
-              'span',
-              { className: 'myui-pinned__glyph' },
-              row.pinned ? h(PinGlyph, { size: compact ? 13 : 15 }) : h('span', { className: 'myui-pinned__dot' }),
-            ),
+            // Leading marker only for pinned rows; unread is the small green dot beside the
+            // title, mirroring the shipped session-row unread indicator.
+            row.pinned
+              ? h('span', { className: 'myui-pinned__glyph' }, h(PinGlyph, { size: compact ? 13 : 15 }))
+              : null,
             h(
               'span',
               { className: 'myui-pinned__body' },
-              h('span', { className: 'myui-pinned__name' }, title),
               h(
                 'span',
-                { className: 'myui-pinned__meta' },
-                h('span', null, workspace ?? t('workspaceFallback')),
+                { className: 'myui-pinned__line' },
+                h('span', { className: 'myui-pinned__name' }, title),
                 row.unread
-                  ? h('span', { className: 'myui-pinned__tag myui-pinned__tag--unread' }, t('unreadTag'))
+                  ? h('span', {
+                      className: 'myui-pinned__unread',
+                      title: t('unreadTag'),
+                      'aria-label': t('unreadTag'),
+                      role: 'img',
+                    })
                   : null,
               ),
+              h('span', { className: 'myui-pinned__meta' }, workspace ?? t('workspaceFallback')),
             ),
             row.pinned
               ? h(
@@ -494,7 +497,9 @@ const SUBPLUGINS = [
         function PinnedIcon(props) {
           const { size } = props;
           const rows = useRows(props);
-          const count = rows.length;
+          // The badge counts unread sessions only; pinned rows are not part of that number.
+          let count = 0;
+          for (const row of rows) if (row.unread) count += 1;
           return h(
             'span',
             {
