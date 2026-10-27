@@ -1,16 +1,19 @@
 /**
  * Sub-plugin `sidebar-pinned` — the first UI sub-plugin of my-dsh-ui.
  *
- * Interaction: the sidebar nav icon opens a floating list of pinned sessions right
- * beside it (no main-area navigation), so switching between pinned sessions is one
- * click. A secondary full page is reachable from the list footer.
+ * The sidebar nav entry opens a floating list of **pinned and unread** sessions
+ * inside the left column, so switching stays one click and the conversation column
+ * is never covered. The shell owns the nav row's click (it selects `PANEL_ID`), so
+ * the page that click mounts immediately hands the main column back to the panel the
+ * user came from and toggles the list instead; the full page is kept only when it is
+ * requested from the list footer.
  *
  * Everything here runs inside the container's mount scope: `ui.slot`, `ui.locale`
  * and `ui.styles` register on the plugin Context, so disabling the sub-plugin in
- * Settings → Plugins → UI sub-plugins removes all three surfaces live.
+ * Settings → Plugins → UI sub-plugins removes all surfaces live.
  *
- * All state comes from the Harness' own Workspace projection; this sub-plugin owns
- * no storage of its own.
+ * State comes from the Harness' own projections (Workspace pinned set, Session
+ * status, Session list); this sub-plugin owns no storage of its own.
  */
 export function apply(ui) {
   const ctx = ui.ctx;
@@ -18,7 +21,7 @@ export function apply(ui) {
   const React = ui.React;
 
   const NS = 'myDshUiPinned';
-  /** Panel id shared by the sidebar entry and the main-area page. */
+  /** Panel id shared by the sidebar entry and the page the shell selects. */
   const PANEL_ID = 'my-dsh-ui.pinned';
   const ANCHOR_ATTR = 'data-myui-pinned-anchor';
   const EMPTY = Object.freeze([]);
@@ -34,30 +37,38 @@ export function apply(ui) {
 
   ui.locale(NS, {
     zh: {
-      title: '置顶',
-      heading: '置顶会话',
-      summary: '取消置顶后，会话会回到它所属的工作区。',
-      empty: '暂无置顶会话。在侧栏的会话行上点「置顶」后就会出现在这里。',
+      title: '置顶/未读',
+      heading: '置顶 / 未读',
+      summary: '置顶的会话排在最前，后面是后台跑完、还没看的会话。点一下直接切过去。',
+      empty: '暂无置顶或未读会话。',
       untitled: '未命名会话',
       workspaceFallback: '未分组',
       open: '打开会话',
       unpin: '取消置顶',
+      pinnedTag: '置顶',
+      unreadTag: '未读',
       openPage: '在页面中查看',
-      listLabel: '置顶会话列表',
-      close: '关闭',
+      backToChat: '回到会话',
+      listLabel: '置顶与未读会话列表',
+      pinnedCountLabel: '置顶',
+      unreadCountLabel: '未读',
     },
     en: {
-      title: 'Pinned',
-      heading: 'Pinned sessions',
-      summary: 'Unpinning a session sends it back to its workspace.',
-      empty: 'No pinned sessions yet. Pin one from a session row in the sidebar and it shows up here.',
+      title: 'Pinned/Unread',
+      heading: 'Pinned / Unread',
+      summary: 'Pinned sessions first, then sessions that finished in the background and have not been read yet. One click switches.',
+      empty: 'No pinned or unread sessions.',
       untitled: 'Untitled session',
       workspaceFallback: 'Ungrouped',
       open: 'Open session',
       unpin: 'Unpin',
+      pinnedTag: 'Pinned',
+      unreadTag: 'Unread',
       openPage: 'Open as page',
-      listLabel: 'Pinned session list',
-      close: 'Close',
+      backToChat: 'Back to conversation',
+      listLabel: 'Pinned and unread sessions',
+      pinnedCountLabel: 'Pinned',
+      unreadCountLabel: 'Unread',
     },
   });
   const t = ctx.locale.bind(NS);
@@ -67,26 +78,30 @@ export function apply(ui) {
     `
 .myui-pinned{box-sizing:border-box;height:100%;overflow-y:auto;padding:24px 32px 32px;color:var(--dsw-alias-label-primary);font-size:14px;line-height:1.5}
 .myui-pinned__head{margin-bottom:16px}
-.myui-pinned__title{font-size:18px;font-weight:600;margin:0 0 6px;display:flex;align-items:center;gap:8px}
-.myui-pinned__summary{margin:0;color:var(--dsw-alias-label-secondary);font-size:13px}
+.myui-pinned__headrow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.myui-pinned__title{font-size:18px;font-weight:600;margin:0;display:flex;align-items:center;gap:8px}
+.myui-pinned__summary{margin:6px 0 0;color:var(--dsw-alias-label-secondary);font-size:13px}
 .myui-pinned__list{display:flex;flex-direction:column;gap:2px;max-width:720px}
 .myui-pinned__empty{max-width:720px;padding:28px 16px;border:1px dashed var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,10px);color:var(--dsw-alias-label-secondary);font-size:13px;text-align:center}
 .myui-pinned__row{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:8px 10px;border:none;border-radius:var(--dsw-radius-md,10px);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .myui-pinned__row:hover{background:var(--dsw-alias-bg-layer-2)}
 .myui-pinned__row:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-2px}
 .myui-pinned__glyph{flex:none;display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;color:var(--dsw-alias-state-warn-primary)}
+.myui-pinned__dot{display:block;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-brand-primary)}
 .myui-pinned__body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .myui-pinned__name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.myui-pinned__meta{font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.myui-pinned__meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.myui-pinned__tag{flex:none;font-size:10px;line-height:15px;padding:0 5px;border-radius:999px;font-weight:600}
+.myui-pinned__tag--pinned{color:var(--dsw-alias-state-warn-primary);background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 16%,transparent)}
+.myui-pinned__tag--unread{color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 14%,transparent)}
 .myui-pinned__action{flex:none;display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border:none;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;opacity:0}
 .myui-pinned__row:hover .myui-pinned__action,.myui-pinned__action:focus-visible{opacity:1}
 .myui-pinned__action:hover{background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
 .myui-pinned__action:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-2px}
 .myui-pinned__badge{position:absolute;top:-2px;right:-4px;min-width:13px;height:13px;padding:0 3px;border-radius:999px;background:var(--dsw-alias-brand-primary);color:#fff;font-size:9px;font-weight:600;line-height:13px;text-align:center}
 .myui-pinned__iconwrap{position:relative;display:inline-flex;align-items:center;justify-content:center}
-.myui-pinned__trigger{border:none;background:transparent;padding:0;margin:0;color:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .myui-pop{position:fixed;z-index:20;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:236px;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,10px);background:var(--dsw-alias-bg-overlay);box-shadow:0 10px 32px rgba(0,0,0,.18);pointer-events:auto}
-.myui-pop__head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 4px;color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.myui-pop__head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 4px;color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600}
 .myui-pop__count{font-weight:600;color:var(--dsw-alias-label-secondary)}
 .myui-pop__list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;min-height:0}
 .myui-pop__empty{padding:18px 10px;color:var(--dsw-alias-label-secondary);font-size:12px;text-align:center;line-height:1.6}
@@ -98,9 +113,8 @@ export function apply(ui) {
   );
 
   // -- projection stores ------------------------------------------------------
-  // `workspaces.list` is the observable Workspace projection: the pinned id list
-  // arrives most-recently-pinned-first, and a Host "pinned" increment replaces it,
-  // so an unpinned id disappears from every surface without extra state.
+  // `workspaces.list` carries the pinned id set (most recently pinned first) and the
+  // archived set; a Host "pinned"/"archived" increment replaces them.
   const workspaceSnapshot = () => {
     try {
       return workspaces.list.getSnapshot();
@@ -124,20 +138,24 @@ export function apply(ui) {
     getSnapshot: () => pinnedIds.getSnapshot().length,
     subscribe: subscribeWorkspaces,
   };
+  const archivedIds = {
+    getSnapshot: () => workspaceSnapshot()?.archivedSessionIds ?? EMPTY,
+    subscribe: subscribeWorkspaces,
+  };
   const workspaceItems = {
     getSnapshot: () => workspaceSnapshot()?.items ?? EMPTY,
     subscribe: subscribeWorkspaces,
   };
-  // Session titles ride the `sessions` projection; every access is defensive so an
-  // absent or re-shaped model degrades to "untitled" instead of crashing the slot.
+  // Session titles/order ride the `sessions` projection; every access is defensive
+  // so an absent or re-shaped model degrades instead of crashing the slot.
   const sessionList =
     sessions && sessions.list
       ? {
           getSnapshot() {
             try {
-              return sessions.list.getSnapshot() ?? { byId: {} };
+              return sessions.list.getSnapshot() ?? { byId: {}, ids: [] };
             } catch {
-              return { byId: {} };
+              return { byId: {}, ids: [] };
             }
           },
           subscribe(listener) {
@@ -149,7 +167,7 @@ export function apply(ui) {
             }
           },
         }
-      : { getSnapshot: () => ({ byId: {} }), subscribe: () => () => {} };
+      : { getSnapshot: () => ({ byId: {}, ids: [] }), subscribe: () => () => {} };
 
   // -- popover state ----------------------------------------------------------
   function createStore(initial) {
@@ -172,43 +190,72 @@ export function apply(ui) {
   }
   const popover = createStore({ open: false, anchor: null });
 
+  // The sidebar owns the nav row's click, so the row doubles as the trigger: the
+  // page it mounts restores the previous panel and toggles the list. The page is
+  // only kept when requested from the list footer.
+  let anchorElement = null;
+  let pageRequested = false;
+  let previousPanelId = null;
+
+  const layoutPanelInfo = layout && layout.panelInfo;
+  if (layoutPanelInfo && typeof layoutPanelInfo.getSnapshot === 'function') {
+    const activeNow = layoutPanelInfo.getSnapshot()?.activePanelId;
+    if (typeof activeNow === 'string' && activeNow !== PANEL_ID) previousPanelId = activeNow;
+    if (typeof layoutPanelInfo.subscribe === 'function') {
+      ctx.effect(
+        () =>
+          layoutPanelInfo.subscribe(() => {
+            const active = layoutPanelInfo.getSnapshot()?.activePanelId;
+            if (typeof active === 'string' && active !== PANEL_ID) previousPanelId = active;
+          }),
+        'my-dsh-ui:pinned panel memory',
+      );
+    }
+  }
+
   function closePopover() {
     const current = popover.getSnapshot();
     if (!current.open) return;
     popover.set({ open: false, anchor: current.anchor });
   }
 
-  function togglePopover(anchorElement) {
-    const current = popover.getSnapshot();
-    if (current.open) {
-      closePopover();
-      return;
+  function anchorRect() {
+    const element = anchorElement;
+    if (element === null || element === undefined || element.isConnected !== true) return null;
+    const rect = element.getBoundingClientRect();
+    return { right: rect.right, top: rect.top, bottom: rect.bottom, left: rect.left, height: rect.height };
+  }
+
+  function openPopover() {
+    popover.set({ open: true, anchor: anchorRect() });
+  }
+
+  function toggleFromNavRow() {
+    if (popover.getSnapshot().open) closePopover();
+    else openPopover();
+  }
+
+  function restorePreviousPanel() {
+    const target = typeof previousPanelId === 'string' && previousPanelId !== PANEL_ID ? previousPanelId : 'conversation';
+    try {
+      if (layout && typeof layout.selectPanel === 'function') layout.selectPanel(target);
+    } catch (error) {
+      ui.log('panel restore failed', error);
     }
-    const rect = anchorElement === undefined || anchorElement === null ? null : anchorElement.getBoundingClientRect();
-    popover.set({
-      open: true,
-      anchor:
-        rect === null
-          ? null
-          : { right: rect.right, top: rect.top, bottom: rect.bottom, left: rect.left, height: rect.height },
-    });
   }
 
   function openPage() {
+    pageRequested = true;
     closePopover();
     try {
       if (layout && typeof layout.selectPanel === 'function') layout.selectPanel(PANEL_ID);
     } catch (error) {
+      pageRequested = false;
       ui.log('page navigation failed', error);
     }
   }
 
-  function openSession(id) {
-    activateSession(id, false);
-  }
-
-  function activateSession(id, keepListOpen) {
-    if (!keepListOpen) closePopover();
+  function activateSession(id) {
     try {
       uiWorkspace.openSession(id);
     } catch (error) {
@@ -221,6 +268,74 @@ export function apply(ui) {
     if (result && typeof result.catch === 'function') {
       result.catch((error) => ui.log('unpin failed', error));
     }
+  }
+
+  // -- unread projection ------------------------------------------------------
+  // `sessionStatus` is a root hook (Map<SessionId, {running, pendingInteraction,
+  // completionUnread}>); `completionUnread` is the sidebar's unread dot.
+  function unreadSignature(map) {
+    const ids = [];
+    if (map !== undefined && map !== null && typeof map.forEach === 'function') {
+      map.forEach((status, id) => {
+        if (status?.completionUnread === true) ids.push(String(id));
+      });
+    }
+    return ids.join('|');
+  }
+
+  function useUnread(useSessionStatus) {
+    if (typeof useSessionStatus !== 'function') return '';
+    return useSessionStatus(unreadSignature);
+  }
+
+  function useUnreadCount(useSessionStatus) {
+    return useUnread(useSessionStatus).split('|').filter(Boolean).length;
+  }
+
+  function sessionTitle(summary, id) {
+    const display = summary?.displayTitle ?? summary?.title ?? '';
+    return typeof display === 'string' && display.trim() !== '' ? display : t('untitled') + ' · ' + String(id).slice(0, 8);
+  }
+
+  function workspaceTitleOf(items, id) {
+    for (const entry of items ?? EMPTY) {
+      if (Array.isArray(entry.sessionIds) && entry.sessionIds.includes(id)) {
+        return typeof entry.title === 'string' && entry.title !== '' ? entry.title : null;
+      }
+    }
+    return null;
+  }
+
+  /** Rows = pinned (pin order) then unread-only (session order), archived removed. */
+  function buildRows({ pinned, unreadSignatureValue, archived, sessionSnapshot }) {
+    const archivedSet = new Set(archived ?? EMPTY);
+    const pinnedSet = new Set(pinned ?? EMPTY);
+    const unread = new Set(unreadSignatureValue === '' ? EMPTY : unreadSignatureValue.split('|'));
+    const byId = sessionSnapshot?.byId ?? {};
+    const order = Array.isArray(sessionSnapshot?.ids) ? sessionSnapshot.ids : Object.keys(byId);
+    const rank = new Map(order.map((id, index) => [id, index]));
+    const rows = [];
+    for (const id of pinned ?? EMPTY) {
+      if (archivedSet.has(id)) continue;
+      rows.push({ id, pinned: true, unread: unread.has(id) });
+    }
+    const rest = [];
+    for (const id of unread) {
+      if (archivedSet.has(id) || pinnedSet.has(id)) continue;
+      if (byId[id] === undefined) continue;
+      rest.push(id);
+    }
+    rest.sort((left, right) => (rank.get(left) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right) ?? Number.MAX_SAFE_INTEGER));
+    for (const id of rest) rows.push({ id, pinned: false, unread: true });
+    return rows;
+  }
+
+  function useRows(props) {
+    const pinned = props.usePinned((value) => value);
+    const archived = props.useArchived((value) => value);
+    const sessionSnapshot = props.useSessionList((value) => value);
+    const unreadSignatureValue = useUnread(props.useSessionStatus);
+    return buildRows({ pinned, unreadSignatureValue, archived, sessionSnapshot });
   }
 
   // -- icons ------------------------------------------------------------------
@@ -270,21 +385,9 @@ export function apply(ui) {
   }
 
   // -- shared row -------------------------------------------------------------
-  function PinnedRow({ id, useSessionList, useWorkspaceItems, onActivate, compact }) {
-    const title = useSessionList((snapshot) => {
-      const summary = snapshot?.byId?.[id];
-      const display = summary?.displayTitle ?? summary?.title ?? '';
-      return typeof display === 'string' && display.trim() !== '' ? display : null;
-    });
-    const workspace = useWorkspaceItems((items) => {
-      for (const entry of items ?? EMPTY) {
-        if (Array.isArray(entry.sessionIds) && entry.sessionIds.includes(id)) {
-          return typeof entry.title === 'string' && entry.title !== '' ? entry.title : null;
-        }
-      }
-      return null;
-    });
-    const label = title ?? t('untitled') + ' · ' + String(id).slice(0, 8);
+  function PinnedRow({ row, compact, useSessionList, useWorkspaceItems, onActivate }) {
+    const title = useSessionList((snapshot) => sessionTitle(snapshot?.byId?.[row.id], row.id) || null);
+    const workspace = useWorkspaceItems((items) => workspaceTitleOf(items, row.id));
     return h(
       'div',
       {
@@ -292,59 +395,67 @@ export function apply(ui) {
         role: 'button',
         tabIndex: 0,
         title: t('open'),
-        onClick: () => onActivate(id),
+        onClick: () => onActivate(row.id),
         onKeyDown: (event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            onActivate(id);
+            onActivate(row.id);
           }
         },
       },
-      h('span', { className: 'myui-pinned__glyph' }, h(PinGlyph, { size: compact ? 13 : 15 })),
+      h(
+        'span',
+        { className: 'myui-pinned__glyph' },
+        row.pinned ? h(PinGlyph, { size: compact ? 13 : 15 }) : h('span', { className: 'myui-pinned__dot' }),
+      ),
       h(
         'span',
         { className: 'myui-pinned__body' },
-        h('span', { className: 'myui-pinned__name' }, label),
-        h('span', { className: 'myui-pinned__meta' }, workspace ?? t('workspaceFallback')),
+        h('span', { className: 'myui-pinned__name' }, title),
+        h(
+          'span',
+          { className: 'myui-pinned__meta' },
+          h('span', null, workspace ?? t('workspaceFallback')),
+          row.unread
+            ? h('span', { className: 'myui-pinned__tag myui-pinned__tag--unread' }, t('unreadTag'))
+            : null,
+        ),
       ),
-      h(
-        'button',
-        {
-          type: 'button',
-          className: 'myui-pinned__action',
-          title: t('unpin'),
-          'aria-label': t('unpin'),
-          onClick: (event) => {
-            event.stopPropagation();
-            unpinSession(id);
-          },
-        },
-        h(UnpinGlyph, { size: compact ? 13 : 15 }),
-      ),
+      row.pinned
+        ? h(
+            'button',
+            {
+              type: 'button',
+              className: 'myui-pinned__action',
+              title: t('unpin'),
+              'aria-label': t('unpin'),
+              onClick: (event) => {
+                event.stopPropagation();
+                unpinSession(row.id);
+              },
+            },
+            h(UnpinGlyph, { size: compact ? 13 : 15 }),
+          )
+        : null,
     );
   }
 
   // -- sidebar trigger --------------------------------------------------------
-  // Rendered inside the sidebar's own nav button, so this is a non-focusable span:
-  // a nested <button> would be invalid, and the shipped row already owns the
-  // accessible name and keyboard activation (which falls back to the page view).
-  function PinnedIcon({ size, usePinnedCount }) {
-    const count = typeof usePinnedCount === 'function' ? usePinnedCount((value) => value) : 0;
-    const anchorRef = React.useRef(null);
+  // Inside the sidebar's own nav button, so this is a presentational span that only
+  // records its position; the row's own click drives the list (see PinnedPage).
+  function PinnedIcon({ size, usePinnedCount, useSessionStatus }) {
+    const pinned = typeof usePinnedCount === 'function' ? usePinnedCount((value) => value) : 0;
+    const unread = useUnreadCount(useSessionStatus);
+    const count = pinned + unread;
     return h(
       'span',
       {
-        ref: anchorRef,
+        ref: (element) => {
+          anchorElement = element;
+        },
         className: 'myui-pinned__iconwrap',
         [ANCHOR_ATTR]: '1',
         title: t('heading'),
-        onClick: (event) => {
-          // Own the click: the row's shipped behavior selects a panel, while this
-          // entry expands the floating list in place.
-          event.preventDefault();
-          event.stopPropagation();
-          togglePopover(anchorRef.current);
-        },
       },
       h(PinGlyph, { size: size ?? 16 }),
       count > 0
@@ -354,19 +465,19 @@ export function apply(ui) {
   }
 
   // -- floating list ----------------------------------------------------------
-  function PinnedPopover({ usePopover, usePinned, useSessionList, useWorkspaceItems, onClose, onOpenPage }) {
+  function PinnedPopover(props) {
+    const { usePopover, useSessionList, useWorkspaceItems, onClose, onOpenPage } = props;
     const state = usePopover((value) => value);
-    const ids = usePinned((value) => value);
+    const rows = useRows(props);
     const rootRef = React.useRef(null);
-    /** Switch to a session but leave the list open, so the next switch is one click. */
-    const keepListOpen = (id) => activateSession(id, true);
 
     React.useEffect(() => {
       if (!state.open) return undefined;
+      const navRow = anchorElement !== null && typeof anchorElement.closest === 'function' ? anchorElement.closest('button') : null;
       const onPointerDown = (event) => {
         const root = rootRef.current;
         if (root !== null && root.contains(event.target)) return;
-        if (event.target instanceof Element && event.target.closest('[' + ANCHOR_ATTR + ']') !== null) return;
+        if (navRow !== null && navRow.contains(event.target)) return;
         onClose();
       };
       const onKeyDown = (event) => {
@@ -375,41 +486,36 @@ export function apply(ui) {
           onClose();
         }
       };
-      const onViewportChange = (event) => {
-        const root = rootRef.current;
-        if (event !== undefined && root !== null && root.contains(event.target)) return;
-        onClose();
-      };
+      const onResize = () => onClose();
       document.addEventListener('pointerdown', onPointerDown, true);
       document.addEventListener('keydown', onKeyDown, true);
       // Only an outside click or Escape dismisses the list: switching sessions or
-      // scrolling the session list must leave it open for the next switch.
-      window.addEventListener('resize', onViewportChange);
+      // scrolling the session list leaves it open for the next switch.
+      window.addEventListener('resize', onResize);
       return () => {
         document.removeEventListener('pointerdown', onPointerDown, true);
         document.removeEventListener('keydown', onKeyDown, true);
-        window.removeEventListener('resize', onViewportChange);
+        window.removeEventListener('resize', onResize);
       };
     }, [state.open, onClose]);
 
     if (!state.open) return null;
     const anchor = state.anchor;
-    // Left column only: expand downward from the trigger, inside the sidebar, so
-    // the conversation column stays usable while the list is open.
+    // Left column only: expand downward from the trigger, inside the sidebar, so the
+    // conversation column stays usable while the list is open.
     const viewportHeight = typeof window === 'undefined' ? 800 : window.innerHeight;
     const top = anchor === null ? 96 : Math.max(8, anchor.bottom + 6);
-    const style = {
-      left: '12px',
-      top: top + 'px',
-      maxHeight: Math.max(160, viewportHeight - top - 16) + 'px',
-      pointerEvents: 'auto',
-    };
     return h(
       'div',
       {
         ref: rootRef,
         className: 'myui-pop',
-        style,
+        style: {
+          left: '12px',
+          top: top + 'px',
+          maxHeight: Math.max(160, viewportHeight - top - 16) + 'px',
+          pointerEvents: 'auto',
+        },
         role: 'dialog',
         'aria-label': t('listLabel'),
       },
@@ -417,21 +523,21 @@ export function apply(ui) {
         'div',
         { className: 'myui-pop__head' },
         h('span', null, t('heading')),
-        h('span', { className: 'myui-pop__count' }, String(ids.length)),
+        h('span', { className: 'myui-pop__count' }, String(rows.length)),
       ),
-      ids.length === 0
+      rows.length === 0
         ? h('div', { className: 'myui-pop__empty' }, t('empty'))
         : h(
             'div',
             { className: 'myui-pop__list' },
-            ids.map((id) =>
+            rows.map((row) =>
               h(PinnedRow, {
-                key: id,
-                id,
+                key: row.id,
+                row,
                 compact: true,
                 useSessionList,
                 useWorkspaceItems,
-                onActivate: keepListOpen,
+                onActivate: activateSession,
               }),
             ),
           ),
@@ -443,30 +549,46 @@ export function apply(ui) {
     );
   }
 
-  // -- full page (reachable from the floating list) ---------------------------
-  function PinnedPage({ usePinned, useSessionList, useWorkspaceItems }) {
-    const ids = usePinned((value) => value);
+  // -- full page (explicitly requested from the floating list) ----------------
+  function PinnedPage(props) {
+    const { useSessionList, useWorkspaceItems } = props;
+    const rows = useRows(props);
+    const [showPage] = React.useState(pageRequested);
+    React.useLayoutEffect(() => {
+      if (pageRequested) {
+        pageRequested = false;
+        return;
+      }
+      toggleFromNavRow();
+      restorePreviousPanel();
+    }, []);
+    if (!showPage) return null;
     return h(
       'section',
       { className: 'myui-pinned', 'aria-label': t('heading') },
       h(
         'header',
         { className: 'myui-pinned__head' },
-        h('h2', { className: 'myui-pinned__title' }, h(PinGlyph, { size: 18 }), t('heading')),
-        h('p', { className: 'myui-pinned__summary' }, ids.length > 0 ? ids.length + ' · ' + t('summary') : t('summary')),
+        h(
+          'div',
+          { className: 'myui-pinned__headrow' },
+          h('h2', { className: 'myui-pinned__title' }, h(PinGlyph, { size: 18 }), t('heading')),
+          h('button', { type: 'button', className: 'myui-button', onClick: restorePreviousPanel }, t('backToChat')),
+        ),
+        h('p', { className: 'myui-pinned__summary' }, rows.length > 0 ? rows.length + ' · ' + t('summary') : t('summary')),
       ),
-      ids.length === 0
+      rows.length === 0
         ? h('div', { className: 'myui-pinned__empty' }, t('empty'))
         : h(
             'div',
             { className: 'myui-pinned__list' },
-            ids.map((id) =>
+            rows.map((row) =>
               h(PinnedRow, {
-                key: id,
-                id,
+                key: row.id,
+                row,
                 useSessionList,
                 useWorkspaceItems,
-                onActivate: openSession,
+                onActivate: activateSession,
               }),
             ),
           ),
@@ -474,9 +596,14 @@ export function apply(ui) {
   }
 
   const face = () => ({
-    hooks: { pinned: pinnedIds, pinnedCount, sessionList, workspaceItems, popover },
-    openSession,
-    unpinSession,
+    hooks: {
+      pinned: pinnedIds,
+      pinnedCount,
+      archived: archivedIds,
+      sessionList,
+      workspaceItems,
+      popover,
+    },
     onClose: closePopover,
     onOpenPage: openPage,
   });
@@ -496,6 +623,7 @@ export function apply(ui) {
     },
     PinnedIcon,
   );
-  // 3. the full page, opened from the floating list footer.
+  // 3. the page the shell mounts on a nav-row click: it bounces back to the previous
+  //    panel and toggles the list; it stays only when the footer asked for it.
   ui.slot('main', { key: PANEL_ID, locale: NS, inject: face }, PinnedPage);
 }

@@ -4,11 +4,12 @@ A **UI sub-plugin container** for DSH (DeepSeek Harness). It does one thing: let
 UI sub-plugins the way you manage DSH plugins — toggle them, compose them, uninstall them, with changes
 taking effect immediately.
 
-The first bundled sub-plugin is **Pinned sessions**: it adds a pin entry with a count badge to the sidebar
-navigation. One click expands a floating list of pinned sessions right under the icon, inside the left column
-(never covering the conversation); clicking a session switches to it and leaves the list open so the next switch
-is one click. Each row can be unpinned, and the list dismisses only on an outside click or Escape. A full page is
-available from the list footer.
+The first bundled sub-plugin is **Pinned / Unread**: it adds an entry with a count badge to the sidebar
+navigation. One click expands a floating list right under the icon, inside the left column (never covering the
+conversation, and the main panel stays where it was): pinned sessions first (unpin from a row), then sessions
+that finished in the background and are still unread (they leave the list once read). Clicking a session
+switches to it and leaves the list open so the next switch is one click. The list dismisses only on an outside
+click or Escape. A full page is available from the list footer.
 
 > Why a page instead of a sidebar section? The DSH sidebar exposes only an icon nav list and one whole
 > session-browsing region to plugins; the workspace header and session list are owned as a single block by

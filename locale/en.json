@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "My DSH UI",
-    "description": "A container for UI sub-plugins: toggle, compose and remove interface features the way you manage plugins. Ships a pinned-sessions sub-plugin that collects pinned sessions into their own section."
+    "description": "A container for UI sub-plugins: toggle, compose and remove interface features the way you manage plugins. Ships a Pinned/Unread sub-plugin — one click opens a floating list inside the left column with pinned sessions first and background-finished unread sessions after it, and one click switches to any of them."
   }
 }
