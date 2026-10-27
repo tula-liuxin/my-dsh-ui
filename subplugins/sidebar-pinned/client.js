@@ -679,9 +679,8 @@ export function apply(ui) {
   let navLabelKey = null;
 
   function navLabelText(counts) {
-    const title = ctx.locale.bind(NS)('title');
-    if (counts.total === 0) return title;
-    return title + ' ' + counts.pinned + '/' + counts.unread;
+    const t2 = ctx.locale.bind(NS);
+    return t2('pinnedTag') + counts.pinned + '/' + t2('unreadTag') + counts.unread;
   }
 
   function ensureNavEntry(counts) {

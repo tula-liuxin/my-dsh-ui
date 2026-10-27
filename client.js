@@ -10,7 +10,7 @@ const SUBPLUGINS = [
     id: "sidebar-pinned",
     manifest: {
       "id": "sidebar-pinned",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "title": {
         "zh": "置顶 / 未读会话",
         "en": "Pinned / unread sessions"
@@ -705,9 +705,8 @@ const SUBPLUGINS = [
         let navLabelKey = null;
 
         function navLabelText(counts) {
-          const title = ctx.locale.bind(NS)('title');
-          if (counts.total === 0) return title;
-          return title + ' ' + counts.pinned + '/' + counts.unread;
+          const t2 = ctx.locale.bind(NS);
+          return t2('pinnedTag') + counts.pinned + '/' + t2('unreadTag') + counts.unread;
         }
 
         function ensureNavEntry(counts) {
