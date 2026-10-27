@@ -85,7 +85,7 @@ export function apply(ui) {
 .myui-pinned__badge{position:absolute;top:-2px;right:-4px;min-width:13px;height:13px;padding:0 3px;border-radius:999px;background:var(--dsw-alias-brand-primary);color:#fff;font-size:9px;font-weight:600;line-height:13px;text-align:center}
 .myui-pinned__iconwrap{position:relative;display:inline-flex;align-items:center;justify-content:center}
 .myui-pinned__trigger{border:none;background:transparent;padding:0;margin:0;color:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
-.myui-pop{position:fixed;z-index:20;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:296px;max-height:min(56vh,520px);padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,10px);background:var(--dsw-alias-bg-overlay);box-shadow:0 10px 32px rgba(0,0,0,.18);pointer-events:auto}
+.myui-pop{position:fixed;z-index:20;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:236px;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,10px);background:var(--dsw-alias-bg-overlay);box-shadow:0 10px 32px rgba(0,0,0,.18);pointer-events:auto}
 .myui-pop__head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 4px;color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
 .myui-pop__count{font-weight:600;color:var(--dsw-alias-label-secondary)}
 .myui-pop__list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;min-height:0}
@@ -204,7 +204,11 @@ export function apply(ui) {
   }
 
   function openSession(id) {
-    closePopover();
+    activateSession(id, false);
+  }
+
+  function activateSession(id, keepListOpen) {
+    if (!keepListOpen) closePopover();
     try {
       uiWorkspace.openSession(id);
     } catch (error) {
@@ -354,6 +358,8 @@ export function apply(ui) {
     const state = usePopover((value) => value);
     const ids = usePinned((value) => value);
     const rootRef = React.useRef(null);
+    /** Switch to a session but leave the list open, so the next switch is one click. */
+    const keepListOpen = (id) => activateSession(id, true);
 
     React.useEffect(() => {
       if (!state.open) return undefined;
@@ -376,25 +382,26 @@ export function apply(ui) {
       };
       document.addEventListener('pointerdown', onPointerDown, true);
       document.addEventListener('keydown', onKeyDown, true);
+      // Only an outside click or Escape dismisses the list: switching sessions or
+      // scrolling the session list must leave it open for the next switch.
       window.addEventListener('resize', onViewportChange);
-      window.addEventListener('wheel', onViewportChange, { passive: true });
       return () => {
         document.removeEventListener('pointerdown', onPointerDown, true);
         document.removeEventListener('keydown', onKeyDown, true);
         window.removeEventListener('resize', onViewportChange);
-        window.removeEventListener('wheel', onViewportChange);
       };
     }, [state.open, onClose]);
 
     if (!state.open) return null;
     const anchor = state.anchor;
-    const width = 296;
-    const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth;
-    const left = anchor === null ? 240 : Math.min(anchor.right + 8, Math.max(8, viewportWidth - width - 12));
-    const top = anchor === null ? 96 : Math.max(8, Math.min(anchor.top, (typeof window === 'undefined' ? 800 : window.innerHeight) - 120));
+    // Left column only: expand downward from the trigger, inside the sidebar, so
+    // the conversation column stays usable while the list is open.
+    const viewportHeight = typeof window === 'undefined' ? 800 : window.innerHeight;
+    const top = anchor === null ? 96 : Math.max(8, anchor.bottom + 6);
     const style = {
-      left: left + 'px',
+      left: '12px',
       top: top + 'px',
+      maxHeight: Math.max(160, viewportHeight - top - 16) + 'px',
       pointerEvents: 'auto',
     };
     return h(
@@ -424,7 +431,7 @@ export function apply(ui) {
                 compact: true,
                 useSessionList,
                 useWorkspaceItems,
-                onActivate: openSession,
+                onActivate: keepListOpen,
               }),
             ),
           ),
