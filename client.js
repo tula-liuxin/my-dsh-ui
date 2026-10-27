@@ -160,10 +160,6 @@ const SUBPLUGINS = [
           getSnapshot: () => workspaceSnapshot()?.pinnedSessionIds ?? EMPTY,
           subscribe: subscribeWorkspaces,
         };
-        const pinnedCount = {
-          getSnapshot: () => pinnedIds.getSnapshot().length,
-          subscribe: subscribeWorkspaces,
-        };
         const archivedIds = {
           getSnapshot: () => workspaceSnapshot()?.archivedSessionIds ?? EMPTY,
           subscribe: subscribeWorkspaces,
@@ -337,10 +333,6 @@ const SUBPLUGINS = [
           },
           subscribe: subscribeStatus,
         };
-        const unreadCount = {
-          getSnapshot: () => unreadIds.getSnapshot().length,
-          subscribe: subscribeStatus,
-        };
 
         function sessionTitle(summary, id) {
           const display = summary?.displayTitle ?? summary?.title ?? '';
@@ -356,27 +348,32 @@ const SUBPLUGINS = [
           return null;
         }
 
-        /** Rows = pinned (pin order) then unread-only (session order), archived/blank removed. */
+        /** Subagent descendants are not switching targets: only top-level sessions belong here. */
+        function isSubagentSession(summary) {
+          if (summary === undefined || summary === null) return false;
+          return summary.origin === 'subagent' || summary.parentSessionId !== undefined;
+        }
+
+        /** Rows = pinned (pin order) then unread-only (newest activity first). */
         function buildRows({ pinned, unread, archived, sessionSnapshot }) {
           const archivedSet = new Set(archived ?? EMPTY);
           const pinnedSet = new Set(pinned ?? EMPTY);
           const unreadSet = new Set(unread ?? EMPTY);
           const byId = sessionSnapshot?.byId ?? {};
-          const order = Array.isArray(sessionSnapshot?.ids) ? sessionSnapshot.ids : Object.keys(byId);
-          const rank = new Map(order.map((id, index) => [id, index]));
           const rows = [];
           for (const id of pinned ?? EMPTY) {
-            if (archivedSet.has(id)) continue;
+            const summary = byId[id];
+            if (archivedSet.has(id) || isSubagentSession(summary)) continue;
             rows.push({ id, pinned: true, unread: unreadSet.has(id) });
           }
           const rest = [];
           for (const id of unreadSet) {
             if (archivedSet.has(id) || pinnedSet.has(id)) continue;
             const summary = byId[id];
-            if (summary === undefined || summary?.blank === true) continue;
+            if (summary === undefined || summary?.blank === true || isSubagentSession(summary)) continue;
             rest.push(id);
           }
-          rest.sort((left, right) => (rank.get(left) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right) ?? Number.MAX_SAFE_INTEGER));
+          rest.sort((left, right) => (byId[right]?.updatedAt ?? 0) - (byId[left]?.updatedAt ?? 0));
           for (const id of rest) rows.push({ id, pinned: false, unread: true });
           return rows;
         }
@@ -494,10 +491,10 @@ const SUBPLUGINS = [
         // -- sidebar trigger --------------------------------------------------------
         // Inside the sidebar's own nav button, so this is a presentational span that only
         // records its position; the row's own click drives the list (see PinnedPage).
-        function PinnedIcon({ size, usePinnedCount, useUnreadCount }) {
-          const pinned = typeof usePinnedCount === 'function' ? usePinnedCount((value) => value) : 0;
-          const unread = typeof useUnreadCount === 'function' ? useUnreadCount((value) => value) : 0;
-          const count = pinned + unread;
+        function PinnedIcon(props) {
+          const { size } = props;
+          const rows = useRows(props);
+          const count = rows.length;
           return h(
             'span',
             {
@@ -649,9 +646,7 @@ const SUBPLUGINS = [
         const face = () => ({
           hooks: {
             pinned: pinnedIds,
-            pinnedCount,
             unread: unreadIds,
-            unreadCount,
             archived: archivedIds,
             sessionList,
             workspaceItems,
