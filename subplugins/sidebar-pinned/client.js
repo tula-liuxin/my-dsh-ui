@@ -86,7 +86,7 @@ export function apply(ui) {
 .myui-pinned__row{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:8px 10px;border:none;border-radius:var(--dsw-radius-md,10px);background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .myui-pinned__row:hover{background:var(--dsw-alias-bg-layer-2)}
 .myui-pinned__row:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-2px}
-.myui-pinned__glyph{flex:none;display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary)}
+.myui-pinned__glyph{flex:none;display:inline-flex;width:16px;height:16px;align-items:center;justify-content:center;color:var(--dsw-alias-label-primary)}
 .myui-pinned__body{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .myui-pinned__name{min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .myui-pinned__meta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -96,16 +96,15 @@ export function apply(ui) {
 .myui-pinned__row:hover .myui-pinned__action,.myui-pinned__action:focus-visible{opacity:1}
 .myui-pinned__action:hover{background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary)}
 .myui-pinned__action:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-2px}
-.myui-pinned__badge{position:absolute;top:-2px;right:-4px;min-width:13px;height:13px;padding:0 3px;border-radius:999px;background:var(--dsw-alias-brand-primary);color:#fff;font-size:9px;font-weight:600;line-height:13px;text-align:center}
 .myui-pinned__iconwrap{position:relative;display:inline-flex;align-items:center;justify-content:center}
 .myui-pop{position:fixed;z-index:20;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:236px;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,10px);background:var(--dsw-alias-bg-overlay);box-shadow:0 10px 32px rgba(0,0,0,.18);pointer-events:auto}
 .myui-pop__head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 4px;color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600}
 .myui-pop__counts{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600}
-.myui-pop__count--pinned{color:var(--dsw-alias-label-secondary)}
+.myui-pop__count--pinned{color:var(--dsw-alias-label-primary)}
 .myui-pop__count--unread{color:var(--dsw-alias-state-success-primary)}
 .myui-pop__sep{color:var(--dsw-alias-label-secondary);opacity:.55;font-weight:400}
 .myui-pinned__counts{display:inline-flex;align-items:center;gap:6px;margin-left:4px;font-size:13px;font-weight:600}
-.myui-pinned__count--pinned{color:var(--dsw-alias-label-secondary)}
+.myui-pinned__count--pinned{color:var(--dsw-alias-label-primary)}
 .myui-pinned__count--unread{color:var(--dsw-alias-state-success-primary)}
 .myui-pinned__sep{color:var(--dsw-alias-label-secondary);opacity:.55;font-weight:400}
 .myui-pop__list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;min-height:0}
@@ -495,11 +494,17 @@ export function apply(ui) {
 
   // -- sidebar trigger --------------------------------------------------------
   // Inside the sidebar's own nav button, so this is a presentational span that only
-  // records its position; the row's own click drives the list (see PinnedPage).
+  // records its position; the row's own click drives the list (see PinnedPage). It
+  // also keeps the nav label's counts in sync with the projections.
   function PinnedIcon(props) {
     const { size } = props;
     const rows = useRows(props);
-    const { total } = countRows(rows);
+    const counts = countRows(rows);
+    const pinnedCount = counts.pinned;
+    const unreadCount = counts.unread;
+    React.useEffect(() => {
+      ensureNavEntry({ pinned: pinnedCount, unread: unreadCount, total: pinnedCount + unreadCount });
+    }, [pinnedCount, unreadCount]);
     return h(
       'span',
       {
@@ -511,9 +516,6 @@ export function apply(ui) {
         title: t('heading'),
       },
       h(PinGlyph, { size: size ?? 16 }),
-      total > 0
-        ? h('span', { className: 'myui-pinned__badge', 'aria-hidden': 'true' }, total > 9 ? '9+' : String(total))
-        : null,
     );
   }
 
@@ -654,33 +656,65 @@ export function apply(ui) {
     );
   }
 
-  const face = () => ({
-    hooks: {
-      pinned: pinnedIds,
-      unread: unreadIds,
-      archived: archivedIds,
-      sessionList,
-      workspaceItems,
-      popover,
-    },
-    onClose: closePopover,
-    onOpenPage: openPage,
-  });
+  function face() {
+    return {
+      hooks: {
+        pinned: pinnedIds,
+        unread: unreadIds,
+        archived: archivedIds,
+        sessionList,
+        workspaceItems,
+        popover,
+      },
+      onClose: closePopover,
+      onOpenPage: openPage,
+    };
+  }
+
+  // The sidebar draws the nav row as `[icon][label]`, so the only surface that can
+  // carry the counts right after "置顶/未读" is the label string itself. The label is
+  // projected from the registration, so the entry is re-registered when a count
+  // changes; the shell then re-reads it (ctx.slots.subscribe).
+  let navEntryDispose = null;
+  let navLabelKey = null;
+
+  function navLabelText(counts) {
+    const title = ctx.locale.bind(NS)('title');
+    if (counts.total === 0) return title;
+    return title + ' ' + counts.pinned + '/' + counts.unread;
+  }
+
+  function ensureNavEntry(counts) {
+    const key = counts.pinned + '/' + counts.unread;
+    if (key === navLabelKey) return;
+    navLabelKey = key;
+    if (typeof navEntryDispose === 'function') navEntryDispose();
+    navEntryDispose = ui.slot(
+      'sidebar.panellist',
+      {
+        id: PANEL_ID,
+        order: 15,
+        locale: NS,
+        label: () => navLabelText(counts),
+        inject: face,
+      },
+      PinnedIcon,
+    );
+  }
 
   // 1. the floating list, in the frame-wide overlay layer (outside every scroll
   //    container, so it is never clipped by the sidebar);
   ui.slot('shell.overlay', { id: 'my-dsh-ui-pinned-popover', order: 60, locale: NS, inject: face }, PinnedPopover);
-  // 2. the sidebar trigger;
-  ui.slot(
-    'sidebar.panellist',
-    {
-      id: PANEL_ID,
-      order: 15,
-      locale: NS,
-      label: () => ctx.locale.bind(NS)('title'),
-      inject: face,
-    },
-    PinnedIcon,
+  // 2. the sidebar trigger, whose label carries the pinned/unread counts;
+  ensureNavEntry(
+    countRows(
+      buildRows({
+        pinned: pinnedIds.getSnapshot(),
+        unread: unreadIds.getSnapshot(),
+        archived: archivedIds.getSnapshot(),
+        sessionSnapshot: sessionList.getSnapshot(),
+      }),
+    ),
   );
   // 3. the page the shell mounts on a nav-row click: it bounces back to the previous
   //    panel and toggles the list; it stays only when the footer asked for it.
