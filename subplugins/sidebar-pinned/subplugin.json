@@ -6,8 +6,8 @@
     "en": "Pinned sessions"
   },
   "description": {
-    "zh": "在侧栏导航新增「置顶」入口：集中列出所有置顶会话，可一键打开或取消置顶；取消置顶后自动从列表移除。",
-    "en": "Adds a Pinned entry to the sidebar navigation: every pinned session in one page, one click to open or unpin, and unpinned sessions leave the list immediately."
+    "zh": "侧栏导航新增「置顶」入口（带数量角标）：点一下就地展开置顶会话浮层，点会话立即切换，行尾可取消置顶；也可从浮层底部进入完整页面。",
+    "en": "Adds a Pinned entry with a count badge to the sidebar navigation: one click expands a floating list of pinned sessions, one click switches to a session, per-row unpin, and a full page from the list footer."
   },
   "author": "Leo / tula-liuxin",
   "homepage": "https://github.com/tula-liuxin/my-dsh-ui",
