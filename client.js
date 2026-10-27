@@ -40,8 +40,7 @@ const SUBPLUGINS = [
        *
        * State comes from the Harness' own projections (Workspace pinned set, Session
        * status, Session list); this sub-plugin owns no storage of its own.
-       */
-      function apply(ui) {
+       */function apply(ui) {
         const ctx = ui.ctx;
         const h = ui.h;
         const React = ui.React;
@@ -1254,7 +1253,9 @@ const SUBPLUGINS = [
     }
 
     return {
-      inject: ['slots', 'locale'],
+      // Wait for the services used by bundled sidebar contributions. Remote
+      // module loading may deliver this plugin before those services exist.
+      inject: ['slots', 'locale', 'workspaces', 'sessions', 'uiWorkspace', 'layout', 'uiSession'],
       apply,
     };
   },
