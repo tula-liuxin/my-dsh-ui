@@ -10,7 +10,7 @@ const SUBPLUGINS = [
     id: "sidebar-pinned",
     manifest: {
       "id": "sidebar-pinned",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "title": {
         "zh": "置顶 / 未读会话",
         "en": "Pinned / unread sessions"
@@ -48,6 +48,8 @@ const SUBPLUGINS = [
         const NS = 'myDshUiPinned';
         /** Panel id shared by the sidebar entry and the page the shell selects. */
         const PANEL_ID = 'my-dsh-ui.pinned';
+        /** The reserved `main` key the shell renders when no global panel is selected. */
+        const CONVERSATION_KEY = 'conversation';
         const ANCHOR_ATTR = 'data-myui-pinned-anchor';
         const EMPTY = Object.freeze([]);
 
@@ -220,19 +222,24 @@ const SUBPLUGINS = [
         // only kept when requested from the list footer.
         let anchorElement = null;
         let pageRequested = false;
+        // The panel to come back to. `null` is a value here, not "unknown": the shell
+        // represents the Conversation as "no global panel selected" (activePanelId ===
+        // null) and returns there by selecting null again. Recording only string ids
+        // stranded the memory on the last global panel — open the todo page once and
+        // every later click on the row jumped back to it instead of the conversation.
         let previousPanelId = null;
+
+        function rememberPanel(active) {
+          if (active === PANEL_ID) return;
+          previousPanelId = typeof active === 'string' && active !== CONVERSATION_KEY ? active : null;
+        }
 
         const layoutPanelInfo = layout && layout.panelInfo;
         if (layoutPanelInfo && typeof layoutPanelInfo.getSnapshot === 'function') {
-          const activeNow = layoutPanelInfo.getSnapshot()?.activePanelId;
-          if (typeof activeNow === 'string' && activeNow !== PANEL_ID) previousPanelId = activeNow;
+          rememberPanel(layoutPanelInfo.getSnapshot()?.activePanelId);
           if (typeof layoutPanelInfo.subscribe === 'function') {
             ctx.effect(
-              () =>
-                layoutPanelInfo.subscribe(() => {
-                  const active = layoutPanelInfo.getSnapshot()?.activePanelId;
-                  if (typeof active === 'string' && active !== PANEL_ID) previousPanelId = active;
-                }),
+              () => layoutPanelInfo.subscribe(() => rememberPanel(layoutPanelInfo.getSnapshot()?.activePanelId)),
               'my-dsh-ui:pinned panel memory',
             );
           }
@@ -261,7 +268,9 @@ const SUBPLUGINS = [
         }
 
         function restorePreviousPanel() {
-          const target = typeof previousPanelId === 'string' && previousPanelId !== PANEL_ID ? previousPanelId : 'conversation';
+          // null selects the Conversation: the same state the shell was in before the
+          // sidebar row was clicked, instead of any panel the user had left behind.
+          const target = typeof previousPanelId === 'string' ? previousPanelId : null;
           try {
             if (layout && typeof layout.selectPanel === 'function') layout.selectPanel(target);
           } catch (error) {

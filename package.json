@@ -1,6 +1,6 @@
 {
   "name": "my-dsh-ui",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": false,
   "description": "DSH UI 子插件容器：把界面能力做成可开关、可组合、可卸载的子插件；内置「置顶会话」子插件。",
   "type": "module",
